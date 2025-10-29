@@ -1,0 +1,152 @@
+clear
+clc
+% MATLAB anonymous function for the COD
+COD_concentration = @(C0, D, u, kc, x, t) (C0 ./ (2 * sqrt(pi * D * t))) .* ...
+    exp(-((x - u * t).^2) ./ (4 * D * t)) .* exp(-kc * t);
+    
+% Initialize ParameterS
+C0 = 142;       % Initial COD concentration (mg/L)
+D = 0.01;       % Dispersion coefficient (m^2/s)
+u = 0.2;        % Flow velocity (m/s)
+kc = 0.001;     % COD decay rate constant (1/s)
+
+%Dispaly parameters
+fprintf('Initial COD concentration: %d mg/L\n',C0);
+fprintf('Dispersion coefficient: %.2f (m^2/s)\n',D);
+fprintf('Flow velocity: %.1f (m/s)\n',u);
+fprintf('COD decay rate constant: %.3f (1/s)\n',kc);
+
+% Define the range for distance (x) and time (t)
+x_min = 0; % start of river (m)
+x_max = 1000; %end of river (m)
+t_min = 0; % start time (hrs)
+t_max = 2; %end time (hrs)
+
+%converting time to seconds for calculation
+t_min_sec = t_min*3600; 
+t_max_sec = t_max*3600;
+
+% Create grid for distance and time
+x_points = 100;     % Number of spatial points
+t_points = 50;      % Number of time points
+
+x = linspace(x_min, x_max, x_points);
+t = linspace(t_min_sec, t_max_sec, t_points);
+[X, T] = meshgrid(x, t);
+
+COD = COD_concentration(C0, D, u, kc, X, T);
+
+% Create 3D surface plot
+figure;
+surf(X, T/3600, COD, 'EdgeColor', 'none'); % Convert time back to hours for display
+
+% Add plot annotations and styling
+title('3D Surface Plot: COD Concentration vs Distance and Time');
+xlabel('Distance Along River (m)');
+ylabel('Time (hours)');
+zlabel('COD Concentration (mg/L)');
+%%
+% Parameters for specific analysis
+time_30min = 30 * 60;  % 30 minutes in seconds
+x_range = linspace(0, 200, 200);  % Distance range
+
+% Different dispersion coefficients to compare
+D_values = [0.001, 0.01, 1];
+colors = ['r', 'g', 'b'];
+line_styles = {'-', '--', ':'};
+labels = {'D = 0.001 m²/s', 'D = 0.01 m²/s', 'D = 1 m²/s'};
+
+% Create figure
+figure;
+
+% Calculate and plot concentrations for each dispersion coefficient
+hold on;
+for i = 1:length(D_values)
+    COD_profile = COD_concentration(C0, D_values(i), u, kc, x_range, time_30min);
+    plot(x_range, COD_profile, ...
+         'Color', colors(i), ...
+         'LineStyle', line_styles{i}, ...
+         'LineWidth', 2.5, ...
+         'DisplayName', labels{i});
+end
+
+% Add plot annotations and styling
+xlabel('Distance Along River (m)');
+ylabel('COD Concentration (mg/L)');
+title('COD Concentration Profile After 30 Minutes');
+legend('show', 'Location', 'northeast');
+grid on;
+%%
+function interactive_COD_plot()
+    % Create figure and UI components
+    fig = figure('Position', [100, 100, 1000, 600], ...
+                 'Name', 'Interactive COD Concentration Plot', ...
+                 'NumberTitle', 'off');
+
+    x_range = linspace(0, 200, 300);
+    
+    % Create axes for plotting
+    ax = axes('Parent', fig, 'Position', [0.15, 0.25, 0.75, 0.65]);
+    
+    % Create slider for dispersion coefficient
+    slider = uicontrol('Parent', fig, ...
+                      'Style', 'slider', ...
+                      'Position', [150, 80, 500, 30], ...
+                      'Min', -3, 'Max', 0, ...
+                      'Value', log10(0.01), ...
+                      'Callback', @updatePlot);
+    
+    % Add slider label
+    uicontrol('Parent', fig, ...
+             'Style', 'text', ...
+             'Position', [150, 50, 500, 20], ...
+             'String', 'Dispersion Coefficient D (m²/s)', ...
+             'FontSize', 11, 'FontWeight', 'bold');
+    
+    % Add value display
+    value_text = uicontrol('Parent', fig, ...
+                          'Style', 'text', ...
+                          'Position', [660, 80, 80, 30], ...
+                          'String', 'D = 0.010 m²/s');
+    
+    % Initial plot
+    updatePlot(slider, []);
+    
+    % Update function
+    function updatePlot(~, ~)
+        % Get current slider value and convert from log scale
+        D_log = slider.Value;
+        D_current = 10^D_log;
+        
+        % Calculate COD concentration
+        COD_current = COD_concentration(C0, D_current, U, k, x_range, time_30min);
+        
+        % Update plot
+        plot(ax, x_range, COD_current, 'b-', 'LineWidth', 2);
+        
+        % Update plot properties
+        xlabel(ax, 'Distance Along River (m)');
+        ylabel(ax, 'COD Concentration (mg/L)');
+        
+        title(ax, sprintf('COD Concentration After 30 Minutes (D = %.3f m²/s)', D_current));
+        
+        grid(ax, 'on');
+        xlim(ax, [0, 200]);
+        set(ax, 'FontSize', 11);
+        
+        % Update value display
+        set(value_text, 'String', sprintf('D = %.3f m²/s', D_current));
+        
+        % Add parameter annotation
+        if isempty(findobj(ax, 'Type', 'textbox'))
+            annotation('textbox', [0.15, 0.75, 0.2, 0.15], ...
+                      'String', sprintf('Fixed Parameters:\nC₀ = %.1f mg/L\nU = %.1f m/s\nk = %.4f s⁻¹\nTime = 30 min', ...
+                      C0, U, k, time_30min/60), ...
+                      'FontSize', 9, 'BackgroundColor', 'white', ...
+                      'EdgeColor', 'black', 'Parent', ax);
+        end
+    end
+end
+
+% Call the interactive function
+interactive_COD_plot();
